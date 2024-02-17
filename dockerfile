@@ -1,15 +1,15 @@
-FROM maven:3.6.3-openjdk-15 as maven
+FROM gradle:jdk21-graal as gradle
 
-COPY ./pom.xml ./pom.xml
+COPY ./ ./
 
-RUN mvn dependency:go-offline -B
+RUN gradle fatJar
 
-COPY ./src ./src
+FROM findepi/graalvm:java21
 
-RUN mvn package
+WORKDIR /znatokiBot
 
-FROM openjdk:15-alpine
+COPY --from=gradle /home/gradle/build/libs/checkPassportBot-1.0-SNAPSHOT-standalone.jar .
 
-COPY --from=maven target/unbbGetMetarInfoBot-1.0-SNAPSHOT.jar .
+RUN apt-get update && apt-get install -y --no-install-recommends procps
 
-CMD ["java", "-jar", "unbbGetMetarInfoBot-1.0-SNAPSHOT.jar" ]
+CMD ["java", "-jar", "checkPassportBot-1.0-SNAPSHOT-standalone.jar", "--add-opens java.base/java.net=ALL-UNNAMED", "--add-opens java.base/sun.net.www.protocol.https=ALL-UNNAMED" ]
