@@ -7,6 +7,10 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onComman
 import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
+import io.github.mivek.model.Airport
+import io.github.mivek.model.Visibility
+import io.github.mivek.model.WeatherCondition
+import io.github.mivek.model.Wind
 import io.github.mivek.service.MetarService
 import io.github.mivek.service.TAFService
 import kotlinx.coroutines.CoroutineScope
@@ -17,15 +21,13 @@ val tafService = TAFService.getInstance()
 
 fun getMetar(icao: String): String{
     val metar = metarService.retrieveFromAirport(icao)
-    val airport = metar.airport
-    val wind = metar.wind
     return """
-        ${metar.airport.name} ${airport.icao}(${airport.iata}) ${airport.altitude}
+        ${getAirport(metar.airport)}
         ${metar.day} ${metar.time}
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
-        wind: ${wind.speed} ${wind.unit} ${wind.directionDegrees}(${wind.direction})
-        visibility: ${metar.visibility.mainVisibility}
-         
+        ${getWind(metar.wind)}
+        ${getVisibility(metar.visibility)}
+        ${getWeatherConditions(metar.weatherConditions)}
         
         ${metar.message}
     """.trimIndent()
@@ -33,7 +35,31 @@ fun getMetar(icao: String): String{
 
 fun getTaf(icao: String): String{
     val taf = tafService.retrieveFromAirport(icao)
-    return ""
+    val validity = taf.validity
+    return """
+        ${getAirport(taf.airport)}
+        ${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}h
+        ${getWind(taf.wind)}
+        ${getVisibility(taf.visibility)}
+        ${getWeatherConditions(taf.weatherConditions)}
+        
+        ${taf.message}
+    """.trimIndent()
+}
+
+fun getAirport(airport: Airport): String =
+    "${airport.name} ${airport.icao}(${airport.iata}) ${airport.altitude}"
+
+fun getWind(wind: Wind): String =
+    "wind: ${wind.speed} ${wind.unit} ${wind.directionDegrees}(${wind.direction})"
+
+fun getVisibility(visibility: Visibility): String =
+    "visibility: ${visibility.mainVisibility}"
+
+fun getWeatherConditions(weatherCondition: List<WeatherCondition>): String{
+    return weatherCondition.map {
+        "${it.intensity.name} ${it.descriptive} ${it.phenomenons.joinToString(",")}"
+    }.joinToString(",")
 }
 
 suspend fun main(){
@@ -54,11 +80,17 @@ suspend fun main(){
             answer(it,
                 listOf(
                     InlineQueryResultArticle(
-                        it.query,
+                        it.query + "metar",
                         "metar",
                         InputTextMessageContent(getMetar(it.query))
+                    ),
+                    InlineQueryResultArticle(
+                        it.query + "taf",
+                        "taf",
+                        InputTextMessageContent(getTaf(it.query))
                     )
-                ))
+                ),
+                cachedTime = 0)
         }
     }.second.join()
 }
