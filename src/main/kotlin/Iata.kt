@@ -21,7 +21,7 @@ class Iata {
                     return Either.Left("ICAO not found for IATA: $iata")
                 }
             }
-            iata.length == 4 -> Either.Left(iata)
+            iata.length == 4 -> Either.Right(iata)
             else -> return Either.Left("No IATA or ICAO found: $iata")
         }
     }
