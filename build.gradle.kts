@@ -15,6 +15,7 @@ dependencies {
     implementation("io.github.mivek:metarParser-services:2.15.1")
     implementation("io.arrow-kt:arrow-core:1.2.1")
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.9.3")
+    implementation("com.google.guava:guava:33.0.0-jre")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 

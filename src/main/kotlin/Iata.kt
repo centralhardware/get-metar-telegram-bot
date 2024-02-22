@@ -1,5 +1,6 @@
 import arrow.core.Either
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
+import com.google.common.io.Resources
 import java.io.File
 import java.util.HashMap
 
@@ -25,7 +26,7 @@ class Iata {
     }
 
     fun parseCsv(): Map<String, String>{
-        val csv = File(Iata::class.java.getResource("iata-icao.csv").file).readText()
+        val csv = File(Resources.getResource("iata-icao.csv").file).readText()
         val raws = csvReader().readAllWithHeader(csv)
         return raws.map { row -> row["iata"]!!.lowercase() to row["icao"]!!.lowercase() }.toMap()
     }
