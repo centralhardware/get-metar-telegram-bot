@@ -26,7 +26,7 @@ class Iata {
     }
 
     fun parseCsv(): Map<String, String>{
-        val csv = File(Resources.getResource("iata-icao.csv").file).readText()
+        val csv = Resources.getResource("iata-icao.csv").readText()
         val raws = csvReader().readAllWithHeader(csv)
         return raws.map { row -> row["iata"]!!.lowercase() to row["icao"]!!.lowercase() }.toMap()
     }
