@@ -1,12 +1,14 @@
 import dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.bot.setMyCommands
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
+import dev.inmo.tgbotapi.extensions.api.send.withAction
 import dev.inmo.tgbotapi.extensions.behaviour_builder.telegramBotWithBehaviourAndLongPolling
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onAnyInlineQuery
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
+import dev.inmo.tgbotapi.types.actions.TypingAction
 import io.github.mivek.model.Airport
 import io.github.mivek.model.Visibility
 import io.github.mivek.model.WeatherCondition
@@ -72,6 +74,7 @@ fun getWeatherConditions(weatherCondition: List<WeatherCondition>): String{
 }
 
 suspend fun main(){
+    val iata: Iata = Iata()
     telegramBotWithBehaviourAndLongPolling(System.getenv("BOT_TOKEN"),
         CoroutineScope(Dispatchers.IO),
         defaultExceptionsHandler = {it -> println(it)}){
@@ -79,33 +82,37 @@ suspend fun main(){
             BotCommand("metar", "Get metar. Usage: /w <icao>"),
             BotCommand("taf", "Get taf. Usage: /taf <icao>")
         )
-        onCommandWithArgs("metar"){ message, args ->
-            sendTextMessage(message.chat, getMetar(args.first()))
+        onCommandWithArgs(Regex("metar|m")){ message, args ->
+            withAction(message.chat.id, TypingAction){
+                iata.getIcao(args.first().lowercase()).fold(
+                    {error -> sendTextMessage(message.chat, error)},
+                    {value -> sendTextMessage(message.chat, getMetar(value))}
+                )
+            }
         }
-        onCommandWithArgs("m"){ message, args ->
-            sendTextMessage(message.chat, getMetar(args.first()))
-        }
-        onCommandWithArgs("taf"){ message, args ->
-            sendTextMessage(message.chat, getTaf(args.first()))
-        }
-        onCommandWithArgs("t"){ message, args ->
-            sendTextMessage(message.chat, getTaf(args.first()))
+        onCommandWithArgs(Regex("taf|t")){ message, args ->
+            withAction(message.chat.id, TypingAction){
+                iata.getIcao(args.first().lowercase()).fold(
+                    {error -> sendTextMessage(message.chat, error)},
+                    {value -> sendTextMessage(message.chat, getTaf(value))}
+                )
+            }
         }
         onAnyInlineQuery {
-            answer(it,
+            iata.getIcao(it.query.lowercase()).map {value -> answer(it,
                 listOf(
                     InlineQueryResultArticle(
                         it.query + "metar",
                         "metar",
-                        InputTextMessageContent(getMetar(it.query))
+                        InputTextMessageContent(getMetar(value))
                     ),
                     InlineQueryResultArticle(
                         it.query + "taf",
                         "taf",
-                        InputTextMessageContent(getTaf(it.query))
+                        InputTextMessageContent(getTaf(value))
                     )
                 ),
-                cachedTime = 0)
+                cachedTime = 0)}
         }
     }.second.join()
 }

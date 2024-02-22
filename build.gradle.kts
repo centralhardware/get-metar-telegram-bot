@@ -13,6 +13,8 @@ repositories {
 dependencies {
     implementation("dev.inmo:tgbotapi:10.1.0")
     implementation("io.github.mivek:metarParser-services:2.15.1")
+    implementation("io.arrow-kt:arrow-core:1.2.1")
+    implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.9.3")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 
