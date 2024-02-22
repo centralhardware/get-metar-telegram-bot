@@ -11,7 +11,7 @@ repositories {
 }
 
 dependencies {
-    implementation("dev.inmo:tgbotapi:10.0.0")
+    implementation("dev.inmo:tgbotapi:10.1.0")
     implementation("io.github.mivek:metarParser-services:2.15.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }

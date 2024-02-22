@@ -15,6 +15,7 @@ import io.github.mivek.service.MetarService
 import io.github.mivek.service.TAFService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlin.math.roundToInt
 
 val metarService = MetarService.getInstance()
 val tafService = TAFService.getInstance()
@@ -47,11 +48,19 @@ fun getTaf(icao: String): String{
     """.trimIndent()
 }
 
+fun convertSpeed(speed: Int, unit: String): Int{
+    return when(unit.lowercase()){
+        "kt" -> (speed * 1.852).roundToInt()
+        "mps" -> (speed * 3.6).roundToInt()
+        else -> throw IllegalArgumentException()
+    }
+}
+
 fun getAirport(airport: Airport): String =
     "${airport.name} ${airport.icao}(${airport.iata}) ${airport.altitude}"
 
 fun getWind(wind: Wind): String =
-    "wind: ${wind.speed} ${wind.unit} ${wind.directionDegrees}(${wind.direction})"
+    "wind: ${convertSpeed(wind.speed, wind.unit)} km/h ${wind.directionDegrees}(${wind.direction})"
 
 fun getVisibility(visibility: Visibility): String =
     "visibility: ${visibility.mainVisibility}"
@@ -73,7 +82,13 @@ suspend fun main(){
         onCommandWithArgs("metar"){ message, args ->
             sendTextMessage(message.chat, getMetar(args.first()))
         }
+        onCommandWithArgs("m"){ message, args ->
+            sendTextMessage(message.chat, getMetar(args.first()))
+        }
         onCommandWithArgs("taf"){ message, args ->
+            sendTextMessage(message.chat, getTaf(args.first()))
+        }
+        onCommandWithArgs("t"){ message, args ->
             sendTextMessage(message.chat, getTaf(args.first()))
         }
         onAnyInlineQuery {
