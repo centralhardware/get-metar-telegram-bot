@@ -10,12 +10,15 @@ class Iata {
     fun getIcao(iata: String): Either<String, String> {
         return when {
             iata.length == 3 -> {
-                if (cache.containsKey(iata)) return Either.Right(cache.getValue(iata))
+                if (cache.containsKey(iata)) {
+                    log.info("get $iata from cache. size ${cache.size}")
+                    return Either.Right(cache.getValue(iata))
+                }
 
                 val icao = parseCsv()[iata]
                 if (icao != null) {
                     cache[iata] = icao
-                    println("add ${iata}:${icao} to cache. size ${cache.size}")
+                    log.info("add ${iata}:${icao} to cache. size ${cache.size}")
                     return Either.Right(icao)
                 } else {
                     return Either.Left("ICAO not found for IATA: $iata")

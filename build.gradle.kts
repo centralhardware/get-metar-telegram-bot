@@ -16,6 +16,9 @@ dependencies {
     implementation("io.arrow-kt:arrow-core:1.2.1")
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.9.3")
     implementation("com.google.guava:guava:33.0.0-jre")
+    implementation("org.slf4j:slf4j-api:2.0.12")
+    implementation("ch.qos.logback:logback-classic:1.5.0")
+    implementation("ch.qos.logback:logback-core:1.5.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 
