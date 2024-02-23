@@ -1,11 +1,12 @@
 import arrow.core.Either
-import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
-import com.google.common.io.Resources
+import io.github.mivek.provider.airport.AirportProvider
 import java.util.HashMap
+import java.util.ServiceLoader
 
 class Iata {
 
     val cache: MutableMap<String, String> = HashMap()
+    val airportProvider = ServiceLoader.load(AirportProvider::class.java).iterator().next()
 
     fun getIcao(iata: String): Either<String, String> {
         return when {
@@ -15,7 +16,7 @@ class Iata {
                     return Either.Right(cache.getValue(iata))
                 }
 
-                val icao = parseCsv()[iata]
+                val icao = getIcaoFromInternet(iata)
                 if (icao != null) {
                     cache[iata] = icao
                     log.info("add ${iata}:${icao} to cache. size ${cache.size}")
@@ -29,10 +30,11 @@ class Iata {
         }
     }
 
-    fun parseCsv(): Map<String, String>{
-        val csv = Resources.getResource("iata-icao.csv").readText()
-        val raws = csvReader().readAllWithHeader(csv)
-        return raws.map { row -> row["iata"]!!.lowercase() to row["icao"]!!.lowercase() }.toMap()
+    fun getIcaoFromInternet(iata: String): String?{
+        return airportProvider.airports
+            .filter { it.value.iata.lowercase() == iata }
+            .map { it.value.icao }
+            .firstOrNull()
     }
 
 }
