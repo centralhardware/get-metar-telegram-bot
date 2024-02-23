@@ -35,10 +35,11 @@ fun getMetar(icao: String): String{
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
         ${getWind(metar.wind)}
         ${getVisibility(metar.visibility)}
+        ${getVerticalVisibility(metar.verticalVisibility)}
         ${getWeatherConditions(metar.weatherConditions)}
         
         ${metar.message}
-    """.trimIndent()
+    """.trimIndent().replace("null", "")
 }
 
 fun getTaf(icao: String): String{
@@ -49,10 +50,11 @@ fun getTaf(icao: String): String{
         ${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}h
         ${getWind(taf.wind)}
         ${getVisibility(taf.visibility)}
+        ${getVerticalVisibility(taf.verticalVisibility)}
         ${getWeatherConditions(taf.weatherConditions)}
         
         ${taf.message}
-    """.trimIndent()
+    """.trimIndent().replace("null", "")
 }
 
 fun convertSpeed(speed: Int, unit: String): Int{
@@ -72,9 +74,12 @@ fun getWind(wind: Wind): String =
 fun getVisibility(visibility: Visibility): String =
     "visibility: ${visibility.mainVisibility}"
 
+fun getVerticalVisibility(visibility: Int?): String =
+    "vertical visibility: ${visibility.toString()}"
+
 fun getWeatherConditions(weatherCondition: List<WeatherCondition>): String{
     return weatherCondition.map {
-        "${it.intensity.name} ${it.descriptive} ${it.phenomenons.joinToString(",")}"
+        "${it.intensity?.let { it.name }} ${it.descriptive} ${it.phenomenons.joinToString(",")}"
     }.joinToString(",")
 }
 
