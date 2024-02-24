@@ -27,46 +27,48 @@ val log = LoggerFactory.getLogger("root")
 val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 
 
-suspend fun main(){
+suspend fun main() {
     val iata = Iata()
     val formatter = Formatter()
     telegramBotWithBehaviourAndLongPolling(System.getenv("BOT_TOKEN"),
         CoroutineScope(Dispatchers.IO),
-        defaultExceptionsHandler = {it -> log.warn("", it)}){
+        defaultExceptionsHandler = { it -> log.warn("", it) }) {
         setMyCommands(
             BotCommand("metar", "Get metar. Usage: /w <icao>"),
             BotCommand("taf", "Get taf. Usage: /taf <icao>"),
             BotCommand("r", "repeat last command")
         )
-        onCommandWithArgs(Regex("metar|m")){ message, args ->
+        onCommandWithArgs(Regex("metar|m")) { message, args ->
             log(message.text, message.from)
-            withAction(message.chat.id, TypingAction){
+            withAction(message.chat.id, TypingAction) {
                 iata.getIcao(args.first().lowercase()).fold(
-                    {error -> sendTextMessage(message.chat, error)},
-                    {value ->
+                    { error -> sendTextMessage(message.chat, error) },
+                    { value ->
                         pushCommand(message.from!!, "m", value)
-                        sendTextMessage(message.chat, formatter.getMetar(value))}
+                        sendTextMessage(message.chat, formatter.getMetar(value))
+                    }
                 )
             }
         }
-        onCommandWithArgs(Regex("taf|t")){ message, args ->
+        onCommandWithArgs(Regex("taf|t")) { message, args ->
             log(message.text, message.from)
-            withAction(message.chat.id, TypingAction){
+            withAction(message.chat.id, TypingAction) {
                 iata.getIcao(args.first().lowercase()).fold(
-                    {error -> sendTextMessage(message.chat, error)},
-                    {value ->
+                    { error -> sendTextMessage(message.chat, error) },
+                    { value ->
                         pushCommand(message.from!!, "t", value)
-                        sendTextMessage(message.chat, formatter.getTaf(value))}
+                        sendTextMessage(message.chat, formatter.getTaf(value))
+                    }
                 )
             }
         }
-        onCommand("r"){
-            withAction(it.chat.id, TypingAction){
+        onCommand("r") {
+            withAction(it.chat.id, TypingAction) {
                 val key = "${it.from!!.id.chatId}@history"
                 val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
                 val type = command.split(" ")[0]
                 val icao = command.split(" ")[1]
-                val res = when(type){
+                val res = when (type) {
                     "m" -> formatter.getMetar(icao)
                     "t" -> formatter.getTaf(icao)
                     else -> "Error occurred"
@@ -76,36 +78,39 @@ suspend fun main(){
         }
         onAnyInlineQuery {
             log("inline " + it.query, it.from)
-            iata.getIcao(it.query.lowercase()).map {value ->
+            iata.getIcao(it.query.lowercase()).map { value ->
                 val res = awaitAll(
                     async { formatter.getMetar(value) },
                     async { formatter.getTaf(value) }
                 )
-                answer(it,
-                listOf(
-                    InlineQueryResultArticle(
-                        it.query + "metar",
-                        "metar",
-                        InputTextMessageContent(res[0])
+                answer(
+                    it,
+                    listOf(
+                        InlineQueryResultArticle(
+                            it.query + "metar",
+                            "metar",
+                            InputTextMessageContent(res[0])
+                        ),
+                        InlineQueryResultArticle(
+                            it.query + "taf",
+                            "taf",
+                            InputTextMessageContent(res[1])
+                        )
                     ),
-                    InlineQueryResultArticle(
-                        it.query + "taf",
-                        "taf",
-                        InputTextMessageContent(res[1])
-                    )
-                ),
-                cachedTime = 0)}
+                    cachedTime = 0
+                )
+            }
         }
     }.second.join()
 }
 
-suspend fun pushCommand(from: User, command: String, icao: String){
-    redisClient.lpush( "${from.id.chatId}@history", "$command $icao")
+suspend fun pushCommand(from: User, command: String, icao: String) {
+    redisClient.lpush("${from.id.chatId}@history", "$command $icao")
     redisClient.ltrim("${from.id.chatId}@history", 0, 6)
 }
 
-fun log(text: String?, from: User?){
-    from?.let{
+fun log(text: String?, from: User?) {
+    from?.let {
         log.info("$text from ${it.id.chatId} ${it.firstName} ${it.lastName}")
     }
 }

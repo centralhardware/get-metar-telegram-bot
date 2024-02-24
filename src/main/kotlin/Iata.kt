@@ -7,37 +7,33 @@ class Iata {
 
     val airportProvider = ServiceLoader.load(AirportProvider::class.java).iterator().next()
 
-    suspend fun getIcao(iata: String): Either<String, String> {
-        return when {
-            iata.length == 3 -> {
-                if (redisClient.exists(iata.redisKey()) == 1L) {
-                    log.info("get $iata from redis")
-                    return Either.Right(redisClient.get(iata.redisKey())!!)
-                }
+    suspend fun getIcao(code: String): Either<String, String> = when {
+        isIataCode(code) -> getIcaoForIataCode(code)
+        isIcaoCode(code) -> Either.Right(code)
+        else -> Either.Left("No IATA or ICAO found: $code")
+    }
 
-                val icao = getIcaoFromInternet(iata)
-                if (icao != null) {
-                    redisClient.set(iata.redisKey(), icao)
-                    log.info("add ${iata}:${icao} to cache")
-                    return Either.Right(icao)
-                } else {
-                    return Either.Left("ICAO not found for IATA: $iata")
-                }
-            }
-            iata.length == 4 -> Either.Right(iata)
-            else -> return Either.Left("No IATA or ICAO found: $iata")
+    private fun isIataCode(code: String) = code.length == 3
+
+    private fun isIcaoCode(code: String) = code.length == 4
+
+    private suspend fun getIcaoForIataCode(iata: String): Either<String, String> {
+        val redisKey = "$iata@iata"
+        if (redisClient.exists(redisKey) == 1L) {
+            log.info("get $iata from redis")
+            return Either.Right(redisClient.get(redisKey)!!)
         }
+        return getIcaoFromInternet(iata)?.let { icao ->
+            redisClient.set(redisKey, icao)
+            log.info("add $iata:$icao to cache")
+            Either.Right(icao)
+        } ?: Either.Left("ICAO not found for IATA: $iata")
     }
 
-    fun String.redisKey(): String{
-        return "$this@iata"
-    }
-
-    fun getIcaoFromInternet(iata: String): String?{
+    private fun getIcaoFromInternet(iata: String): String? {
         return airportProvider.airports
             .filter { it.value.iata.lowercase() == iata }
             .map { it.value.icao }
             .firstOrNull()
     }
-
 }

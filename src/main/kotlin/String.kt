@@ -1,4 +1,4 @@
-inline fun String?.ifNotEmpty(crossinline block: (String) -> Unit): Unit {
+fun String?.ifNotEmpty(block: (String) -> Unit) {
     if (this != null && this.isNotEmpty()) {
         block(this)
     }
