@@ -19,6 +19,7 @@ dependencies {
     implementation("org.slf4j:slf4j-api:2.0.12")
     implementation("ch.qos.logback:logback-classic:1.5.0")
     implementation("ch.qos.logback:logback-core:1.5.0")
+    implementation("io.github.crackthecodeabhi:kreds:0.9.1")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 

@@ -12,6 +12,8 @@ import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
 import dev.inmo.tgbotapi.types.actions.TypingAction
 import dev.inmo.tgbotapi.types.chat.User
+import io.github.crackthecodeabhi.kreds.connection.Endpoint
+import io.github.crackthecodeabhi.kreds.connection.newClient
 import io.github.mivek.model.AbstractWeatherCode
 import io.github.mivek.model.Airport
 import io.github.mivek.model.Cloud
@@ -22,15 +24,18 @@ import io.github.mivek.service.MetarService
 import io.github.mivek.service.TAFService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import org.slf4j.LoggerFactory
 import kotlin.math.roundToInt
 
 val metarService = MetarService.getInstance()
 val tafService = TAFService.getInstance()
 val log = LoggerFactory.getLogger("root")
+val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 
 fun getMetar(icao: String): String{
     val metar = metarService.retrieveFromAirport(icao)
+    log.info("get metar for $icao")
     var inline =  """
         ${metar.day} ${metar.time}
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
@@ -40,6 +45,7 @@ fun getMetar(icao: String): String{
 
 fun getTaf(icao: String): String{
     val taf = tafService.retrieveFromAirport(icao)
+    log.info("get metar for $icao")
     val validity = taf.validity
     var inline = "${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}"
     return getCommon(taf, inline).replace("null", "")
@@ -113,7 +119,7 @@ suspend fun main(){
         defaultExceptionsHandler = {it -> log.warn("", it)}){
         setMyCommands(
             BotCommand("metar", "Get metar. Usage: /w <icao>"),
-            BotCommand("taf", "Get taf. Usage: /taf <icao>")
+            BotCommand("taf", "Get taf. Usage: /taf <icao>"),
         )
         onCommandWithArgs(Regex("metar|m")){ message, args ->
             log(message.text, message.from)
@@ -135,17 +141,20 @@ suspend fun main(){
         }
         onAnyInlineQuery {
             log("inline " + it.query, it.from)
-            iata.getIcao(it.query.lowercase()).map {value -> answer(it,
+            iata.getIcao(it.query.lowercase()).map {value ->
+                val metar = async { getMetar(value) }.await()
+                val taf = async { getTaf(value) }.await()
+                answer(it,
                 listOf(
                     InlineQueryResultArticle(
                         it.query + "metar",
                         "metar",
-                        InputTextMessageContent(getMetar(value))
+                        InputTextMessageContent(metar)
                     ),
                     InlineQueryResultArticle(
                         it.query + "taf",
                         "taf",
-                        InputTextMessageContent(getTaf(value))
+                        InputTextMessageContent(taf)
                     )
                 ),
                 cachedTime = 0)}
