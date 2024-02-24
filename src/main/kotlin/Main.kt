@@ -4,6 +4,7 @@ import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.api.send.withAction
 import dev.inmo.tgbotapi.extensions.behaviour_builder.telegramBotWithBehaviourAndLongPolling
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onAnyInlineQuery
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.from
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.text
@@ -12,6 +13,7 @@ import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
 import dev.inmo.tgbotapi.types.actions.TypingAction
 import dev.inmo.tgbotapi.types.chat.User
+import io.github.crackthecodeabhi.kreds.args.LeftRightOption
 import io.github.crackthecodeabhi.kreds.connection.Endpoint
 import io.github.crackthecodeabhi.kreds.connection.newClient
 import io.github.mivek.model.AbstractWeatherCode
@@ -25,6 +27,7 @@ import io.github.mivek.service.TAFService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import org.slf4j.LoggerFactory
 import kotlin.math.roundToInt
 
@@ -34,8 +37,8 @@ val log = LoggerFactory.getLogger("root")
 val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 
 fun getMetar(icao: String): String{
-    val metar = metarService.retrieveFromAirport(icao)
     log.info("get metar for $icao")
+    val metar = metarService.retrieveFromAirport(icao)
     var inline =  """
         ${metar.day} ${metar.time}
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
@@ -44,8 +47,8 @@ fun getMetar(icao: String): String{
 }
 
 fun getTaf(icao: String): String{
+    log.info("get taf for $icao")
     val taf = tafService.retrieveFromAirport(icao)
-    log.info("get metar for $icao")
     val validity = taf.validity
     var inline = "${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}"
     return getCommon(taf, inline).replace("null", "")
@@ -55,7 +58,7 @@ fun getCommon(container: AbstractWeatherCode, inline: String): String{
     val sb = StringBuilder()
     sb.append(getAirport(container.airport))
     sb.append("\n").append(inline)
-    sb.append("\n").append(getWind(container.wind))
+    getWind(container.wind).ifNotEmpty { sb.append("\n").append(it) }
     sb.append("\n").append(getVisibility(container.visibility))
     getVerticalVisibility(container.verticalVisibility).ifNotEmpty { sb.append("\n").append(it) }
     getWeatherConditions(container.weatherConditions).ifNotEmpty { sb.append("\n").append(it) }
@@ -76,8 +79,13 @@ fun convertSpeed(speed: Int, unit: String): Int{
 fun getAirport(airport: Airport): String =
     "${airport.name} ${airport.icao}(${airport.iata}) ${airport.altitude}"
 
-fun getWind(wind: Wind): String =
-    "wind: ${convertSpeed(wind.speed, wind.unit)} km/h ${wind.directionDegrees}(${wind.direction})"
+fun getWind(wind: Wind?): String {
+    return if (wind == null){
+        ""
+    } else{
+        "wind: ${convertSpeed(wind.speed, wind.unit)} km/h ${wind.directionDegrees}(${wind.direction})"
+    }
+}
 
 fun getVisibility(visibility: Visibility): String =
     "visibility: ${visibility.mainVisibility}"
@@ -120,13 +128,16 @@ suspend fun main(){
         setMyCommands(
             BotCommand("metar", "Get metar. Usage: /w <icao>"),
             BotCommand("taf", "Get taf. Usage: /taf <icao>"),
+            BotCommand("r", "repeat last command")
         )
         onCommandWithArgs(Regex("metar|m")){ message, args ->
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction){
                 iata.getIcao(args.first().lowercase()).fold(
                     {error -> sendTextMessage(message.chat, error)},
-                    {value -> sendTextMessage(message.chat, getMetar(value))}
+                    {value ->
+                        pushCommand(message.from!!, "m", value)
+                        sendTextMessage(message.chat, getMetar(value))}
                 )
             }
         }
@@ -135,31 +146,54 @@ suspend fun main(){
             withAction(message.chat.id, TypingAction){
                 iata.getIcao(args.first().lowercase()).fold(
                     {error -> sendTextMessage(message.chat, error)},
-                    {value -> sendTextMessage(message.chat, getTaf(value))}
+                    {value ->
+                        pushCommand(message.from!!, "t", value)
+                        sendTextMessage(message.chat, getTaf(value))}
                 )
+            }
+        }
+        onCommand("r"){
+            withAction(it.chat.id, TypingAction){
+                val key = "${it.from!!.id.chatId}@history"
+                val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
+                val type = command.split(" ")[0]
+                val icao = command.split(" ")[1]
+                val res = when(type){
+                    "m" -> getMetar(icao)
+                    "t" -> getTaf(icao)
+                    else -> "Error occurred"
+                }
+                sendTextMessage(it.chat, res)
             }
         }
         onAnyInlineQuery {
             log("inline " + it.query, it.from)
             iata.getIcao(it.query.lowercase()).map {value ->
-                val metar = async { getMetar(value) }.await()
-                val taf = async { getTaf(value) }.await()
+                val res = awaitAll(
+                    async { getMetar(value) },
+                    async { getTaf(value) }
+                )
                 answer(it,
                 listOf(
                     InlineQueryResultArticle(
                         it.query + "metar",
                         "metar",
-                        InputTextMessageContent(metar)
+                        InputTextMessageContent(res[0])
                     ),
                     InlineQueryResultArticle(
                         it.query + "taf",
                         "taf",
-                        InputTextMessageContent(taf)
+                        InputTextMessageContent(res[1])
                     )
                 ),
                 cachedTime = 0)}
         }
     }.second.join()
+}
+
+suspend fun pushCommand(from: User, command: String, icao: String){
+    redisClient.lpush( "${from.id.chatId}@history", "$command $icao")
+    redisClient.ltrim("${from.id.chatId}@history", 0, 6)
 }
 
 fun log(text: String?, from: User?){
