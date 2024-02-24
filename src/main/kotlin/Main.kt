@@ -1,4 +1,4 @@
-import dev.inmo.tgbotapi.extensions.api.answers.answer
+import  dev.inmo.tgbotapi.extensions.api.answers.answer
 import dev.inmo.tgbotapi.extensions.api.bot.setMyCommands
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.api.send.withAction
@@ -31,35 +31,32 @@ val log = LoggerFactory.getLogger("root")
 
 fun getMetar(icao: String): String{
     val metar = metarService.retrieveFromAirport(icao)
-    var res =  """
-        ${getAirport(metar.airport)}
+    var inline =  """
         ${metar.day} ${metar.time}
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
     """.trimIndent().trimMargin();
-    res = res.plus("\n" + getCommon(metar))
-    return res.replace("null", "")
+    return getCommon(metar, inline).replace("null", "")
 }
 
 fun getTaf(icao: String): String{
     val taf = tafService.retrieveFromAirport(icao)
     val validity = taf.validity
-    var res = """
-        ${getAirport(taf.airport)}
-        ${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}h
-    """.trimIndent().trimMargin()
-    res = res.plus("\n" + getCommon(taf))
-    return res.replace("null", "")
+    var inline = "${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}"
+    return getCommon(taf, inline).replace("null", "")
 }
 
-fun getCommon(container: AbstractWeatherCode): String{
-    var res = getWind(container.wind)
-    res = res.plus("\n" + getVisibility(container.visibility))
-    getVerticalVisibility(container.verticalVisibility).ifNotEmpty { res = res.plus("\n" + it) }
-    getWeatherConditions(container.weatherConditions).ifNotEmpty { res = res.plus("\n" + it) }
-    getClouds(container.clouds).ifNotEmpty { res = res.plus("\n" + it) }
-    getRemark(container.remark).ifNotEmpty { res = res.plus("\n" + it) }
-    res = res.plus("\n\n" + container.message)
-    return res
+fun getCommon(container: AbstractWeatherCode, inline: String): String{
+    val sb = StringBuilder()
+    sb.append(getAirport(container.airport))
+    sb.append("\n").append(inline)
+    sb.append("\n").append(getWind(container.wind))
+    sb.append("\n").append(getVisibility(container.visibility))
+    getVerticalVisibility(container.verticalVisibility).ifNotEmpty { sb.append("\n").append(it) }
+    getWeatherConditions(container.weatherConditions).ifNotEmpty { sb.append("\n").append(it) }
+    getClouds(container.clouds).ifNotEmpty { sb.append("\n").append(it) }
+    getRemark(container.remark).ifNotEmpty { sb.append("\n").append(it) }
+    sb.append("\n\n").append(container.message)
+    return sb.toString()
 }
 
 fun convertSpeed(speed: Int, unit: String): Int{
