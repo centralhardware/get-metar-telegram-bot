@@ -12,7 +12,9 @@ import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResult
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
 import dev.inmo.tgbotapi.types.actions.TypingAction
 import dev.inmo.tgbotapi.types.chat.User
+import io.github.mivek.model.AbstractWeatherCode
 import io.github.mivek.model.Airport
+import io.github.mivek.model.Cloud
 import io.github.mivek.model.Visibility
 import io.github.mivek.model.WeatherCondition
 import io.github.mivek.model.Wind
@@ -29,32 +31,35 @@ val log = LoggerFactory.getLogger("root")
 
 fun getMetar(icao: String): String{
     val metar = metarService.retrieveFromAirport(icao)
-    return """
+    var res =  """
         ${getAirport(metar.airport)}
         ${metar.day} ${metar.time}
         temp: ${metar.temperature}, dew point: ${metar.dewPoint}, ${if (metar.isNosig == true) "nosig" else ""}
-        ${getWind(metar.wind)}
-        ${getVisibility(metar.visibility)}
-        ${getVerticalVisibility(metar.verticalVisibility)}
-        ${getWeatherConditions(metar.weatherConditions)}
-        
-        ${metar.message}
-    """.trimIndent().replace("null", "")
+    """.trimIndent().trimMargin();
+    res = res.plus("\n" + getCommon(metar))
+    return res.replace("null", "")
 }
 
 fun getTaf(icao: String): String{
     val taf = tafService.retrieveFromAirport(icao)
     val validity = taf.validity
-    return """
+    var res = """
         ${getAirport(taf.airport)}
         ${validity.startDay}d ${validity.startHour}h - ${validity.endDay}d ${validity.endHour}h
-        ${getWind(taf.wind)}
-        ${getVisibility(taf.visibility)}
-        ${getVerticalVisibility(taf.verticalVisibility)}
-        ${getWeatherConditions(taf.weatherConditions)}
-        
-        ${taf.message}
-    """.trimIndent().replace("null", "")
+    """.trimIndent().trimMargin()
+    res = res.plus("\n" + getCommon(taf))
+    return res.replace("null", "")
+}
+
+fun getCommon(container: AbstractWeatherCode): String{
+    var res = getWind(container.wind)
+    res = res.plus("\n" + getVisibility(container.visibility))
+    getVerticalVisibility(container.verticalVisibility).ifNotEmpty { res = res.plus("\n" + it) }
+    getWeatherConditions(container.weatherConditions).ifNotEmpty { res = res.plus("\n" + it) }
+    getClouds(container.clouds).ifNotEmpty { res = res.plus("\n" + it) }
+    getRemark(container.remark).ifNotEmpty { res = res.plus("\n" + it) }
+    res = res.plus("\n\n" + container.message)
+    return res
 }
 
 fun convertSpeed(speed: Int, unit: String): Int{
@@ -74,13 +79,34 @@ fun getWind(wind: Wind): String =
 fun getVisibility(visibility: Visibility): String =
     "visibility: ${visibility.mainVisibility}"
 
-fun getVerticalVisibility(visibility: Int?): String =
-    "vertical visibility: ${visibility.toString()}"
+fun getVerticalVisibility(visibility: Int?): String {
+    return if (visibility == null){
+        ""
+    } else{
+        "vertical visibility: ${visibility.toString()}"
+    }
+}
+
+fun getRemark(remark: String?): String{
+    return if (remark.isNullOrBlank()){
+        ""
+    } else{
+        "remark: $remark"
+    }
+}
 
 fun getWeatherConditions(weatherCondition: List<WeatherCondition>): String{
     return weatherCondition.map {
-        "${it.intensity?.let { it.name }} ${it.descriptive} ${it.phenomenons.joinToString(",")}"
-    }.joinToString(",")
+        "${it.intensity?.let { it.name.lowercase() }} ${it.descriptive} ${it.phenomenons.joinToString(",")}"
+    }.joinToString(",").trim()
+}
+
+fun getClouds(clouds: List<Cloud>): String{
+    return clouds
+        .sortedBy { it.height }
+        .map {
+        "${it.type} ${it.quantity} ${it.height}"
+    }.joinToString(",").trim()
 }
 
 suspend fun main(){
