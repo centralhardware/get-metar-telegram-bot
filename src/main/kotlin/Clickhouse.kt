@@ -35,7 +35,7 @@ class Clickhouse {
                 now(),
                 'metarBot',
                 :user_id,
-                :usernames,
+                array(:usernames),
                 :first_name,
                 :last_name,
                 :is_premium,
