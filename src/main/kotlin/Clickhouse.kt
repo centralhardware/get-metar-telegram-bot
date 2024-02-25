@@ -32,8 +32,8 @@ class Clickhouse {
                 lang,
                 text
            ) VALUES (
-                :date_time,
-                :bot_name,
+                now(),
+                'metarBot',
                 :user_id,
                 :usernames,
                 :first_name,
@@ -44,8 +44,6 @@ class Clickhouse {
                 :text
            ) 
         """, mapOf(
-                        "date_time" to LocalDateTime.now(),
-                        "bot_name" to "metarBot",
                         "user_id" to userId,
                         "usernames" to if (it.username != null) it.username!!.full else null,
                         "first_name" to it.firstName,
