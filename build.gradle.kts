@@ -20,6 +20,10 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.5.0")
     implementation("ch.qos.logback:logback-core:1.5.0")
     implementation("io.github.crackthecodeabhi:kreds:0.9.1")
+    implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
+    implementation("org.lz4:lz4-java:1.8.0")
+    implementation("com.github.seratch:kotliquery:1.9.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 

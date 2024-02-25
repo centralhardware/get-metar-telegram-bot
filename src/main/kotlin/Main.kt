@@ -6,6 +6,7 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.telegramBotWithBehaviourAn
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onAnyInlineQuery
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
+import dev.inmo.tgbotapi.extensions.utils.asCommonUser
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.from
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.text
 import dev.inmo.tgbotapi.types.BotCommand
@@ -30,6 +31,7 @@ val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 suspend fun main() {
     val iata = Iata()
     val formatter = Formatter()
+    val clickhouse = Clickhouse()
     telegramBotWithBehaviourAndLongPolling(System.getenv("BOT_TOKEN"),
         CoroutineScope(Dispatchers.IO),
         defaultExceptionsHandler = { it -> log.warn("", it) }) {
@@ -41,6 +43,7 @@ suspend fun main() {
         onCommandWithArgs(Regex("metar|m")) { message, args ->
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
+                clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), message.chat.id.chatId)
                 iata.getIcao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
@@ -52,6 +55,7 @@ suspend fun main() {
         }
         onCommandWithArgs(Regex("taf|t")) { message, args ->
             log(message.text, message.from)
+            clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), message.chat.id.chatId)
             withAction(message.chat.id, TypingAction) {
                 iata.getIcao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
@@ -64,6 +68,7 @@ suspend fun main() {
         }
         onCommand("r") {
             withAction(it.chat.id, TypingAction) {
+                clickhouse.log(it.text!!, false, it.from!!.asCommonUser(), it.chat.id.chatId)
                 val key = "${it.from!!.id.chatId}@history"
                 val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
                 val type = command.split(" ")[0]
@@ -78,6 +83,7 @@ suspend fun main() {
         }
         onAnyInlineQuery {
             log("inline " + it.query, it.from)
+            clickhouse.log(it.query!!, true, it.from.asCommonUser(), it.from.id.chatId)
             iata.getIcao(it.query.lowercase()).map { value ->
                 val res = awaitAll(
                     async { formatter.getMetar(value) },
@@ -101,6 +107,7 @@ suspend fun main() {
                 )
             }
         }
+
     }.second.join()
 }
 
