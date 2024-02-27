@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import org.slf4j.LoggerFactory
+import me.centralhardware.telegram.bot.common.ClickhouseKt
 
 
 val log = LoggerFactory.getLogger("root")
@@ -31,7 +32,7 @@ val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 suspend fun main() {
     val iata = Iata()
     val formatter = Formatter()
-    val clickhouse = Clickhouse()
+    val clickhouse = ClickhouseKt()
     telegramBotWithBehaviourAndLongPolling(System.getenv("BOT_TOKEN"),
         CoroutineScope(Dispatchers.IO),
         defaultExceptionsHandler = { it -> log.warn("", it) }) {
@@ -41,10 +42,10 @@ suspend fun main() {
             BotCommand("r", "repeat last command")
         )
         onCommandWithArgs(Regex("metar|m")) { message, args ->
+            async { clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot") }
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
-                clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot")
-                iata.getIcao(args.first().lowercase()).fold(
+                iata.icao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
                         pushCommand(message.from!!, "m", value)
@@ -54,10 +55,10 @@ suspend fun main() {
             }
         }
         onCommandWithArgs(Regex("taf|t")) { message, args ->
+            async { clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot") }
             log(message.text, message.from)
-            clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot")
             withAction(message.chat.id, TypingAction) {
-                iata.getIcao(args.first().lowercase()).fold(
+                iata.icao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
                         pushCommand(message.from!!, "t", value)
@@ -67,8 +68,8 @@ suspend fun main() {
             }
         }
         onCommand("r") {
+            async { clickhouse.log(it.text!!, false, it.from!!.asCommonUser(), "metarBot") }
             withAction(it.chat.id, TypingAction) {
-                clickhouse.log(it.text!!, false, it.from!!.asCommonUser(), "metarBot")
                 val key = "${it.from!!.id.chatId}@history"
                 val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
                 val type = command.split(" ")[0]
@@ -82,9 +83,9 @@ suspend fun main() {
             }
         }
         onAnyInlineQuery {
+            async { clickhouse.log(it.query!!, true, it.from.asCommonUser(), "metarBot") }
             log("inline " + it.query, it.from)
-            clickhouse.log(it.query!!, true, it.from.asCommonUser(), "metarBot")
-            iata.getIcao(it.query.lowercase()).map { value ->
+            iata.icao(it.query.lowercase()).map { value ->
                 val res = awaitAll(
                     async { formatter.getMetar(value) },
                     async { formatter.getTaf(value) }
