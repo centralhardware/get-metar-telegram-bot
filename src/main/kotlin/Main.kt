@@ -23,6 +23,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import org.slf4j.LoggerFactory
 import me.centralhardware.telegram.bot.common.ClickhouseKt
+import me.centralhardware.telegram.bot.common.MessageType
 
 
 val log = LoggerFactory.getLogger("root")
@@ -42,7 +43,7 @@ suspend fun main() {
             BotCommand("r", "repeat last command")
         )
         onCommandWithArgs(Regex("metar|m")) { message, args ->
-            async { clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot") }
+            async { clickhouse.log(message.text!!,message.from!!.asCommonUser(), "metarBot", MessageType.TEXT) }
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
                 iata.icao(args.first().lowercase()).fold(
@@ -55,7 +56,7 @@ suspend fun main() {
             }
         }
         onCommandWithArgs(Regex("taf|t")) { message, args ->
-            async { clickhouse.log(message.text!!, false, message.from!!.asCommonUser(), "metarBot") }
+            async { clickhouse.log(message.text!!,message.from!!.asCommonUser(), "metarBot", MessageType.TEXT) }
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
                 iata.icao(args.first().lowercase()).fold(
@@ -68,7 +69,7 @@ suspend fun main() {
             }
         }
         onCommand("r") {
-            async { clickhouse.log(it.text!!, false, it.from!!.asCommonUser(), "metarBot") }
+            async { clickhouse.log(it.text!!, it.from!!.asCommonUser(), "metarBot", MessageType.TEXT) }
             withAction(it.chat.id, TypingAction) {
                 val key = "${it.from!!.id.chatId}@history"
                 val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
@@ -83,7 +84,7 @@ suspend fun main() {
             }
         }
         onAnyInlineQuery {
-            async { clickhouse.log(it.query!!, true, it.from.asCommonUser(), "metarBot") }
+            async { clickhouse.log(it.query!!, it.from.asCommonUser(), "metarBot", MessageType.INLINE) }
             log("inline " + it.query, it.from)
             iata.icao(it.query.lowercase()).map { value ->
                 val res = awaitAll(
