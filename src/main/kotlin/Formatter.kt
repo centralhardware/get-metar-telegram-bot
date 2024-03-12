@@ -8,16 +8,16 @@ class Formatter {
     val metarService = MetarService.getInstance()
     val tafService = TAFService.getInstance()
 
-    fun getMetar(icao: String): String {
+    fun getMetar(icao: String): Pair<String, String> {
         log.info("get metar for $icao")
         val metar = metarService.retrieveFromAirport(icao)
-        return getCommon(metar)
+        return Pair(getCommon(metar), metar.message)
     }
 
-    fun getTaf(icao: String): String {
+    fun getTaf(icao: String): Pair<String, String> {
         log.info("get taf for $icao")
         val taf = tafService.retrieveFromAirport(icao)
-        return getCommon(taf)
+        return Pair(getCommon(taf), taf.message)
     }
 
     fun getCommon(container: AbstractWeatherCode): String {
@@ -43,7 +43,6 @@ class Formatter {
         getWeatherConditions(container.weatherConditions).ifNotEmpty { sb.append("\n").append(it) }
         getClouds(container.clouds).ifNotEmpty { sb.append("\n").append(it) }
         getRemark(container.remark).ifNotEmpty { sb.append("\n").append(it) }
-        sb.append("\n\n").append(container.message)
         return sb.toString().replace("null", "")
     }
 

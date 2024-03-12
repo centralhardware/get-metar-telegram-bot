@@ -1,4 +1,5 @@
 import dev.inmo.tgbotapi.extensions.api.answers.answer
+import dev.inmo.tgbotapi.extensions.api.answers.answerCallbackQuery
 import dev.inmo.tgbotapi.extensions.api.bot.setMyCommands
 import dev.inmo.tgbotapi.extensions.api.send.sendTextMessage
 import dev.inmo.tgbotapi.extensions.api.send.withAction
@@ -6,24 +7,30 @@ import dev.inmo.tgbotapi.extensions.behaviour_builder.telegramBotWithBehaviourAn
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onAnyInlineQuery
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommand
 import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onCommandWithArgs
+import dev.inmo.tgbotapi.extensions.behaviour_builder.triggers_handling.onDataCallbackQuery
 import dev.inmo.tgbotapi.extensions.utils.asCommonUser
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.from
 import dev.inmo.tgbotapi.extensions.utils.extensions.raw.text
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.dataButton
+import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
 import dev.inmo.tgbotapi.types.actions.TypingAction
 import dev.inmo.tgbotapi.types.chat.User
+import dev.inmo.tgbotapi.utils.row
 import io.github.crackthecodeabhi.kreds.args.LeftRightOption
+import io.github.crackthecodeabhi.kreds.args.SetOption
 import io.github.crackthecodeabhi.kreds.connection.Endpoint
 import io.github.crackthecodeabhi.kreds.connection.newClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import org.slf4j.LoggerFactory
 import me.centralhardware.telegram.bot.common.ClickhouseKt
 import me.centralhardware.telegram.bot.common.MessageType
+import org.slf4j.LoggerFactory
+import java.util.*
 
 
 val log = LoggerFactory.getLogger("root")
@@ -49,8 +56,12 @@ suspend fun main() {
                 iata.icao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
+                        val metar = formatter.getMetar(value)
                         pushCommand(message.from!!, "m", value)
-                        sendTextMessage(message.chat, formatter.getMetar(value))
+                        sendTextMessage(message.chat, metar.first,
+                            replyMarkup = inlineKeyboard {
+                                row { dataButton("raw message", saveRawMessage(metar.second)) }
+                            })
                     }
                 )
             }
@@ -62,8 +73,12 @@ suspend fun main() {
                 iata.icao(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
+                        val taf = formatter.getTaf(value)
                         pushCommand(message.from!!, "t", value)
-                        sendTextMessage(message.chat, formatter.getTaf(value))
+                        sendTextMessage(message.chat, taf.first,
+                            replyMarkup = inlineKeyboard {
+                                row { dataButton("raw message", saveRawMessage(taf.second)) }
+                            })
                     }
                 )
             }
@@ -78,9 +93,12 @@ suspend fun main() {
                 val res = when (type) {
                     "m" -> formatter.getMetar(icao)
                     "t" -> formatter.getTaf(icao)
-                    else -> "Error occurred"
+                    else -> throw IllegalArgumentException()
                 }
-                sendTextMessage(it.chat, res)
+                sendTextMessage(it.chat, res.first,
+                    replyMarkup = inlineKeyboard {
+                        row { dataButton("raw message", saveRawMessage(res.second)) }
+                    })
             }
         }
         onAnyInlineQuery {
@@ -88,8 +106,8 @@ suspend fun main() {
             log("inline " + it.query, it.from)
             iata.icao(it.query.lowercase()).map { value ->
                 val res = awaitAll(
-                    async { formatter.getMetar(value) },
-                    async { formatter.getTaf(value) }
+                    async { formatter.getMetar(value).first },
+                    async { formatter.getTaf(value).first }
                 )
                 answer(
                     it,
@@ -109,6 +127,9 @@ suspend fun main() {
                 )
             }
         }
+        onDataCallbackQuery {
+            answerCallbackQuery(it, redisClient.get("raw_messages_${it.data}"), showAlert = true)
+        }
 
     }.second.join()
 }
@@ -116,6 +137,12 @@ suspend fun main() {
 suspend fun pushCommand(from: User, command: String, icao: String) {
     redisClient.lpush("${from.id.chatId}@history", "$command $icao")
     redisClient.ltrim("${from.id.chatId}@history", 0, 6)
+}
+
+suspend fun saveRawMessage(raw: String): String{
+    val id = UUID.randomUUID().toString()
+    redisClient.set("raw_messages_$id", raw, SetOption.Builder().exSeconds(604800u).build())
+    return id
 }
 
 fun log(text: String?, from: User?) {
