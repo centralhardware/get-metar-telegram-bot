@@ -3,20 +3,20 @@ import io.github.mivek.service.MetarService
 import io.github.mivek.service.TAFService
 import kotlin.math.roundToInt
 
-class Formatter {
+object Formatter {
 
     val metarService = MetarService.getInstance()
     val tafService = TAFService.getInstance()
 
-    fun getMetar(icao: String): Pair<String, String> {
+    fun getMetar(icao: Icao): Pair<String, String> {
         log.info("get metar for $icao")
-        val metar = metarService.retrieveFromAirport(icao)
+        val metar = metarService.retrieveFromAirport(icao.code)
         return Pair(getCommon(metar), metar.message)
     }
 
-    fun getTaf(icao: String): Pair<String, String> {
+    fun getTaf(icao: Icao): Pair<String, String> {
         log.info("get taf for $icao")
-        val taf = tafService.retrieveFromAirport(icao)
+        val taf = tafService.retrieveFromAirport(icao.code)
         return Pair(getCommon(taf), taf.message)
     }
 

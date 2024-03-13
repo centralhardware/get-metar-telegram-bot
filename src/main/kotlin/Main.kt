@@ -38,12 +38,10 @@ val redisClient = newClient(Endpoint.from(System.getenv("REDIS_URL")))
 
 
 suspend fun main() {
-    val iata = Iata()
-    val formatter = Formatter()
     val clickhouse = ClickhouseKt()
     telegramBotWithBehaviourAndLongPolling(System.getenv("BOT_TOKEN"),
         CoroutineScope(Dispatchers.IO),
-        defaultExceptionsHandler = { it -> log.warn("", it) }) {
+        defaultExceptionsHandler = { log.warn("", it) }) {
         setMyCommands(
             BotCommand("metar", "Get metar. Usage: /w <icao>"),
             BotCommand("taf", "Get taf. Usage: /taf <icao>"),
@@ -53,10 +51,10 @@ suspend fun main() {
             async { clickhouse.log(message.text!!,message.from!!.asCommonUser(), "metarBot", MessageType.TEXT) }
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
-                iata.icao(args.first().lowercase()).fold(
+                IcaoStorage.get(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
-                        val metar = formatter.getMetar(value)
+                        val metar = Formatter.getMetar(value)
                         pushCommand(message.from!!, "m", value)
                         sendTextMessage(message.chat, metar.first,
                             replyMarkup = inlineKeyboard {
@@ -70,10 +68,10 @@ suspend fun main() {
             async { clickhouse.log(message.text!!,message.from!!.asCommonUser(), "metarBot", MessageType.TEXT) }
             log(message.text, message.from)
             withAction(message.chat.id, TypingAction) {
-                iata.icao(args.first().lowercase()).fold(
+                IcaoStorage.get(args.first().lowercase()).fold(
                     { error -> sendTextMessage(message.chat, error) },
                     { value ->
-                        val taf = formatter.getTaf(value)
+                        val taf = Formatter.getTaf(value)
                         pushCommand(message.from!!, "t", value)
                         sendTextMessage(message.chat, taf.first,
                             replyMarkup = inlineKeyboard {
@@ -89,10 +87,10 @@ suspend fun main() {
                 val key = "${it.from!!.id.chatId}@history"
                 val command = redisClient.lmove(key, key, LeftRightOption.LEFT, LeftRightOption.LEFT)!!
                 val type = command.split(" ")[0]
-                val icao = command.split(" ")[1]
+                val icao = command.split(" ")[1].asIcao()
                 val res = when (type) {
-                    "m" -> formatter.getMetar(icao)
-                    "t" -> formatter.getTaf(icao)
+                    "m" -> Formatter.getMetar(icao)
+                    "t" -> Formatter.getTaf(icao)
                     else -> throw IllegalArgumentException()
                 }
                 sendTextMessage(it.chat, res.first,
@@ -104,10 +102,10 @@ suspend fun main() {
         onAnyInlineQuery {
             async { clickhouse.log(it.query!!, it.from.asCommonUser(), "metarBot", MessageType.INLINE) }
             log("inline " + it.query, it.from)
-            iata.icao(it.query.lowercase()).map { value ->
+            IcaoStorage.get(it.query.lowercase()).map { value ->
                 val res = awaitAll(
-                    async { formatter.getMetar(value).first },
-                    async { formatter.getTaf(value).first }
+                    async { Formatter.getMetar(value).first },
+                    async { Formatter.getTaf(value).first }
                 )
                 answer(
                     it,
@@ -128,13 +126,14 @@ suspend fun main() {
             }
         }
         onDataCallbackQuery {
+            async { clickhouse.log(it.data, it.from.asCommonUser(), "metarBot", MessageType.CALLBACK) }
             answerCallbackQuery(it, redisClient.get("raw_messages_${it.data}"), showAlert = true)
         }
 
     }.second.join()
 }
 
-suspend fun pushCommand(from: User, command: String, icao: String) {
+suspend fun pushCommand(from: User, command: String, icao: Icao) {
     redisClient.lpush("${from.id.chatId}@history", "$command $icao")
     redisClient.ltrim("${from.id.chatId}@history", 0, 6)
 }

@@ -3,3 +3,7 @@ fun String?.ifNotEmpty(block: (String) -> Unit) {
         block(this)
     }
 }
+
+fun String.asIcao(): Icao{
+    return Icao(this)
+}
