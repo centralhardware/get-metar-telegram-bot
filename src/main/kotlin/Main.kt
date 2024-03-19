@@ -16,6 +16,7 @@ import dev.inmo.tgbotapi.extensions.utils.types.buttons.inlineKeyboard
 import dev.inmo.tgbotapi.types.BotCommand
 import dev.inmo.tgbotapi.types.InlineQueries.InlineQueryResult.InlineQueryResultArticle
 import dev.inmo.tgbotapi.types.InlineQueries.InputMessageContent.InputTextMessageContent
+import dev.inmo.tgbotapi.types.InlineQueryId
 import dev.inmo.tgbotapi.types.actions.TypingAction
 import dev.inmo.tgbotapi.types.chat.User
 import dev.inmo.tgbotapi.utils.row
@@ -111,12 +112,12 @@ suspend fun main() {
                     it,
                     listOf(
                         InlineQueryResultArticle(
-                            it.query + "metar",
+                            InlineQueryId(it.query + "metar"),
                             "metar",
                             InputTextMessageContent(res[0])
                         ),
                         InlineQueryResultArticle(
-                            it.query + "taf",
+                            InlineQueryId(it.query + "taf"),
                             "taf",
                             InputTextMessageContent(res[1])
                         )

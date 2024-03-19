@@ -12,7 +12,7 @@ repositories {
 
 dependencies {
     implementation("com.github.centralhardware:telegram-bot-commons:29d6ca32dc")
-    implementation("dev.inmo:tgbotapi:10.1.0")
+    implementation("dev.inmo:tgbotapi:11.0.0")
     implementation("io.github.mivek:metarParser-services:2.15.2")
     implementation("io.arrow-kt:arrow-core:1.2.1")
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.9.3")
